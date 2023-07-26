@@ -100,7 +100,7 @@ try {
 } catch {
     Write-Host "Error: ExifTool no se encuentra en el PATH. Asegúrate de que ExifTool está instalado y su ruta está configurada correctamente."
      # Instalar exiftool con Winget
-     Write-Host "Instalando exiftool con Winget..."
+     Write-Host "Instalando exiftool con Winget... acepta la instalacion si te pregunta."
      $packageName = "exiftool"
      $wingetInstalled = Get-Command winget -ErrorAction SilentlyContinue
  
@@ -110,6 +110,9 @@ try {
      }
  
      Start-Process -Wait winget install $packageName
+      # Recargar el PATH en el contexto actual
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::Machine)
+
 }
 
 
