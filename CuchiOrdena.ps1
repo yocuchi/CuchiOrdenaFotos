@@ -28,7 +28,7 @@ Fecha: [Fecha]
 Ejecuta el script para ordenar las fotos y videos en la carpeta "C:\Ruta\De\La\Carpeta" y sus subcarpetas.
 
 .EXAMPLE
-.\CuchiOrdena.ps1 -test -verbose
+.\CuchiOrdena.ps1 -test -enableverbose
 Ejecuta el script en modo de prueba con información detallada (modo verbose) sin realizar cambios en los archivos.
 
 #>
@@ -56,22 +56,25 @@ function ObtenerFechaCaptura($rutaArchivo) {
         $fechaCaptura = $exifLines[0] -replace '^DateTimeOriginal: '
         $fechaCaptura = [datetime]::ParseExact($fechaCaptura, "yyyy:MM:dd HH:mm:ss", $null)
 
-        if ($test) {
+        if ($enableVerbose) {
             Write-Host "EXIF OK"
         }
     }
-    elseif ($nombreArchivo -match "^(IMG|VID)_\d{8}_\d{6}") {
-        $fechaHoraCaptura = $nombreArchivo -replace "_", ""
-        $fechaHoraCaptura = [System.IO.Path]::GetFileNameWithoutExtension($fechaHoraCaptura)
-        $fechaHoraCaptura = $fechaHoraCaptura -replace "^(IMG|VID)", ""
+    elseif ($nombreArchivo -match ".*?(IMG|VID)-(\d{8}).*") {
+                                   
+     
+
+        
+        $fechaCaptura = [datetime]::ParseExact($Matches[2], "yyyyMMdd", $null)
+
 
   
-        if ($test) {
-            Write-Host "$fechaHoraCaptura"
+        if ($enableVerbose) {
+            Write-Host "$fechaCaptura"
         }
-        $fechaCaptura = [datetime]::ParseExact($fechaHoraCaptura, "yyyyMMddHHmmss", $null)
+        #$fechaCaptura = [datetime]::ParseExact($fechaHoraCaptura, "yyyyMMddHHmmss", $null)
     
-        if ($test) {
+        if ($enableVerbose) {
             Write-Host "WHAS OK: $fechaCaptura"
         }
     }
@@ -81,7 +84,7 @@ function ObtenerFechaCaptura($rutaArchivo) {
         $fechaCaptura = (Get-Item $rutaArchivo).LastWriteTime.ToString("yyyy:MM:dd HH:mm:ss")
         $fechaCaptura = [datetime]::ParseExact($fechaCaptura, "yyyy:MM:dd HH:mm:ss", $null)
 
-        if ($test) {
+        if ($enableVerbose) {
             Write-Host "DATE OK"
         }
     }
@@ -164,11 +167,11 @@ foreach ($archivo in $archivos) {
      Write-Host -NoNewline $mensaje
  
      # Reportar el progreso con Write-Progress
-     $progresoActual = [int]($contador * 100 / $totalArchivos)
-     if ($progresoActual -gt $progreso) {
+     $progresoActual = ($contador * 100 / $totalArchivos)
+     #if ($progresoActual -gt $progreso) {
          $progreso = $progresoActual
-         Write-Progress -Activity "Procesando archivos" -Status "$contador de $totalArchivos archivos procesados $_.FullName" -PercentComplete $progreso
-     }
+         Write-Progress -Activity "Procesando archivos" -Status "$contador de $totalArchivos archivos procesados $rutaArchivo" -PercentComplete $progreso
+     #}
 
     
     # Renombrar el archivo
@@ -206,12 +209,12 @@ foreach ($archivo in $archivos) {
          
 
 
-         
+         #TODO: solo si no ha sacado los datos del exiftool
          # Escribir la fecha correcta de captura en el archivo y obtener la salida de ExifTool
         $exiftoolOutput = & $exiftoolPath  "-DateTimeOriginal=$fechaFormateada" "-FileModifyDate=$fechaFormateada"  $nuevoNombreArchivo -overwrite_original
 
         # Concatenar la salida de ExifTool con el mensaje y mostrarlo en la consola
-        Write-Host  " | $exiftoolOutput"
+        Write-Host  "`n Copiado a $nuevoNombreArchivo | $exiftoolOutput"
      
         }
 
@@ -223,6 +226,8 @@ foreach ($archivo in $archivos) {
     $summary["$extension-MB"] += $tamanioMb
     $summary["Total-MB"] += $tamanioMb
     $totalMbProcesados += $tamanioMb
+
+    Write-Host  "`n"
 }
 
 
