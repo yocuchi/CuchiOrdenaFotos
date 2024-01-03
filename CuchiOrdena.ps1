@@ -67,13 +67,6 @@ function ObtenerFechaCaptura($rutaArchivo) {
         
         $fechaCaptura = [datetime]::ParseExact($Matches[2], "yyyyMMdd", $null)
 
-
-  
-        if ($enableVerbose) {
-            Write-Host "$fechaCaptura"
-        }
-        #$fechaCaptura = [datetime]::ParseExact($fechaHoraCaptura, "yyyyMMddHHmmss", $null)
-    
         if ($enableVerbose) {
             Write-Host "WHAS OK: $fechaCaptura"
         }
@@ -100,20 +93,21 @@ $exiftoolPath = "exiftool.exe"
 
 try {
     $null = & $exiftoolPath "--ver"
-} catch {
+}
+catch {
     Write-Host "Error: ExifTool no se encuentra en el PATH. Asegúrate de que ExifTool está instalado y su ruta está configurada correctamente."
-     # Instalar exiftool con Winget
-     Write-Host "Instalando exiftool con Winget... acepta la instalacion si te pregunta."
-     $packageName = "exiftool"
-     $wingetInstalled = Get-Command winget -ErrorAction SilentlyContinue
+    # Instalar exiftool con Winget
+    Write-Host "Instalando exiftool con Winget... acepta la instalacion si te pregunta."
+    $packageName = "exiftool"
+    $wingetInstalled = Get-Command winget -ErrorAction SilentlyContinue
  
-     if (-not $wingetInstalled) {
-         Write-Host "Winget no está instalado. Por favor, instale Winget antes de ejecutar el script." -ForegroundColor Red
-         Exit
-     }
+    if (-not $wingetInstalled) {
+        Write-Host "Winget no está instalado. Por favor, instale Winget antes de ejecutar el script." -ForegroundColor Red
+        Exit
+    }
  
-     Start-Process -Wait winget install $packageName
-      # Recargar el PATH en el contexto actual
+    Start-Process -Wait winget install $packageName
+    # Recargar el PATH en el contexto actual
     $env:Path = [System.Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::Machine)
 
 }
@@ -126,16 +120,28 @@ if ($enableVerbose) {
 
 # Crear la carpeta de salida
 $carpetaSalida = Join-Path -Path $folder -ChildPath "out"
-New-Item -ItemType Directory -Path $carpetaSalida -ErrorAction SilentlyContinue | Out-Null
+if (-not (Test-Path -Path $carpetaSalida)) {
+    New-Item -ItemType Directory -Path $carpetaSalida | Out-Null
+}
+
+
+
+# Crear la carpeta 'Procesados' en la raíz
+$carpetaProcesados = Join-Path -Path $folder -ChildPath 'processed'
+if (-not (Test-Path -Path $carpetaProcesados)) {
+    New-Item -ItemType Directory -Path $carpetaProcesados | Out-Null
+}
 
 # Borrar el contenido de la carpeta de salida
-Remove-Item -Path $carpetaSalida\* -Force -Recurse -ErrorAction SilentlyContinue
+# Remove-Item -Path $carpetaSalida\* -Force -Recurse -ErrorAction SilentlyContinue
 
 # Procesar la carpeta y subcarpetas
-$exclude_folder = Join-Path -Path $folder -ChildPath "out"
+$exclude_folder_out = Join-Path -Path $folder -ChildPath "out"
+$exclude_folder_processed = Join-Path -Path $folder -ChildPath "processed"
 $archivos = Get-ChildItem -Path $folder -Recurse -File | Where-Object {
-    -not $_.PSIsContainer -and $_.FullName -notlike "$exclude_folder\*" -and $_.Extension -ne ".ps1"
+    -not $_.PSIsContainer -and $_.FullName -notlike "$exclude_folder_out\*" -and $_.FullName -notlike "$exclude_folder_processed\*" -and $_.Extension -ne ".ps1"
 }
+
 $totalArchivos = $archivos.Count
 $contador = 0
 
@@ -162,16 +168,16 @@ foreach ($archivo in $archivos) {
         Write-Host "Procesando $rutaArchivo"
     }
     
-     # Escribir el mensaje en la consola
-     $mensaje = "$contador de $totalArchivos : $rutaArchivo : $fechaCaptura"
-     Write-Host -NoNewline $mensaje
+    # Escribir el mensaje en la consola
+    $mensaje = "$contador de $totalArchivos : $rutaArchivo : $fechaCaptura"
+    Write-Host -NoNewline $mensaje
  
-     # Reportar el progreso con Write-Progress
-     $progresoActual = ($contador * 100 / $totalArchivos)
-     #if ($progresoActual -gt $progreso) {
-         $progreso = $progresoActual
-         Write-Progress -Activity "Procesando archivos" -Status "$contador de $totalArchivos archivos procesados $rutaArchivo" -PercentComplete $progreso
-     #}
+    # Reportar el progreso con Write-Progress
+    $progresoActual = ($contador * 100 / $totalArchivos)
+    #if ($progresoActual -gt $progreso) {
+    $progreso = $progresoActual
+    Write-Progress -Activity "Procesando archivos" -Status "$contador de $totalArchivos archivos procesados $rutaArchivo" -PercentComplete $progreso
+    #}
 
     
     # Renombrar el archivo
@@ -191,34 +197,60 @@ foreach ($archivo in $archivos) {
         
          
  
-         if (-not (Test-Path -Path $carpetaAnio)) {
-             New-Item -ItemType Directory -Path $carpetaAnio | Out-Null
-         }
+        if (-not (Test-Path -Path $carpetaAnio)) {
+            New-Item -ItemType Directory -Path $carpetaAnio | Out-Null
+        }
  
-         if (-not (Test-Path -Path $carpetaMes)) {
-             New-Item -ItemType Directory -Path $carpetaMes | Out-Null
-         }
+        if (-not (Test-Path -Path $carpetaMes)) {
+            New-Item -ItemType Directory -Path $carpetaMes | Out-Null
+        }
  
         # Copiar archivo a la carpeta del mes y obtener el nuevo nombre
         Copy-Item -Path $rutaArchivo -Destination $nuevoNombreArchivo -Force
 
-         # Formatear la fecha y hora en el formato adecuado (yyyyMMddHHmmss)
-         $fechaFormateada = $fechaCaptura.ToString("yyyy:MM:dd HH:mm:ss")
+        # Backup en processed
+       # Construir la nueva ruta para el archivo en la carpeta "Processed" manteniendo la estructura de carpetas
+$rutaRelativa = $archivo.FullName.Substring($folder.Length)
+$rutaRelativaSinArchivo = [System.IO.Path]::GetDirectoryName($rutaRelativa)
+
+$rutaProcessed = Join-Path -Path $carpetaProcesados -ChildPath $rutaRelativaSinArchivo
+
+
+        if ($enableVerbose) {
+            Write-Host "Ruta relativa sin archivo $rutaRelativaSinArchivo"
+            Write-Host "Ruta processed $rutaProcessed"
+        }
+
+        
+        if (!(Test-Path $rutaProcessed)) {
+            New-Item -Path $rutaProcessed -ItemType Directory -Force | Out-Null
+        }
+
+        
+        # Copiar el archivo original a la carpeta "Processed"
+        Copy-Item -Path $rutaArchivo -Destination $rutaProcessed -Force
+
+        # Eliminar el archivo original
+        Remove-Item -Path $rutaArchivo -Force
+
+
+        # Formatear la fecha y hora en el formato adecuado (yyyyMMddHHmmss)
+        $fechaFormateada = $fechaCaptura.ToString("yyyy:MM:dd HH:mm:ss")
 
 
          
 
 
-         #TODO: solo si no ha sacado los datos del exiftool
-         # Escribir la fecha correcta de captura en el archivo y obtener la salida de ExifTool
+        #TODO: solo si no ha sacado los datos del exiftool
+        # Escribir la fecha correcta de captura en el archivo y obtener la salida de ExifTool
         $exiftoolOutput = & $exiftoolPath  "-DateTimeOriginal=$fechaFormateada" "-FileModifyDate=$fechaFormateada"  $nuevoNombreArchivo -overwrite_original
 
         # Concatenar la salida de ExifTool con el mensaje y mostrarlo en la consola
         Write-Host  "`n Copiado a $nuevoNombreArchivo | $exiftoolOutput"
      
-        }
+    }
 
-         # Actualizar resumen por extensión y tamaño
+    # Actualizar resumen por extensión y tamaño
     $extension = $archivo.Extension
     $tamanioMb = $archivo.Length / 1MB
 
