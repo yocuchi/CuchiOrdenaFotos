@@ -41,6 +41,12 @@ param (
     [switch]$test,
     [switch]$enableVerbose    # Parámetro para habilitar el modo verbose
 )
+
+# Verificar si los parámetros requeridos están presentes
+if (-not $PSBoundParameters.ContainsKey('folder')) {
+    Write-Host "ERROR: Debes proporcionar la ruta de la carpeta. Uso: CuchiOrdena.ps1 -folder 'RUTA_DE_LA_CARPETA'"
+    return
+}
 # Obtener la fecha correcta de captura de la foto o video
 function ObtenerFechaCaptura($rutaArchivo) {
 
